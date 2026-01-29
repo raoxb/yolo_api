@@ -1,11 +1,40 @@
 import logging
+import os
+from pathlib import Path
 from flask import Flask
 
 from config import Config
 from database.models import db
-from yolo_wrapper.detector import init_detector
 from api.routes import api_bp
 from web.routes import web_bp
+
+
+def init_model(app):
+    """初始化模型（自动选择 ONNX 或 PyTorch）"""
+    use_onnx = app.config.get('USE_ONNX', 'auto')
+    onnx_path = app.config.get('ONNX_MODEL_PATH')
+    pt_path = app.config.get('MODEL_PATH')
+    confidence = app.config.get('CONFIDENCE_THRESHOLD', 0.25)
+    iou = app.config.get('IOU_THRESHOLD', 0.45)
+
+    # 自动选择：优先 ONNX
+    if use_onnx == 'auto':
+        use_onnx = Path(onnx_path).exists()
+    else:
+        use_onnx = use_onnx.lower() == 'true'
+
+    if use_onnx and Path(onnx_path).exists():
+        from yolo_wrapper.onnx_detector import ONNXDetector
+        from yolo_wrapper import detector as det_module
+
+        logging.info(f"Using ONNX Runtime with model: {onnx_path}")
+        detector = ONNXDetector(onnx_path, confidence, iou)
+        detector.load()
+        det_module._detector = detector
+    else:
+        from yolo_wrapper.detector import init_detector
+        logging.info(f"Using PyTorch with model: {pt_path}")
+        init_detector(pt_path, confidence, iou)
 
 
 def create_app(config_class=Config):
@@ -34,11 +63,7 @@ def create_app(config_class=Config):
             logging.warning(f"Failed to enable WAL mode: {e}")
 
     # 初始化模型
-    init_detector(
-        model_path=app.config['MODEL_PATH'],
-        confidence=app.config.get('CONFIDENCE_THRESHOLD', 0.25),
-        iou=app.config.get('IOU_THRESHOLD', 0.45)
-    )
+    init_model(app)
 
     # 注册蓝图
     app.register_blueprint(api_bp)

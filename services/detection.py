@@ -21,6 +21,7 @@ class DetectionService:
         'action_button': (0, 255, 0),   # 绿色
     }
     DEFAULT_COLOR = (255, 0, 0)  # 蓝色
+    INPUT_SIZE = 640  # 与 detector 保持一致
 
     @staticmethod
     def decode_base64_image(base64_string: str) -> Image.Image:
@@ -75,15 +76,41 @@ class DetectionService:
 
         # 解码图片
         image = DetectionService.decode_base64_image(base64_image)
+        orig_w, orig_h = image.size
 
         # 获取检测器并执行检测
         detector = get_detector()
         detections = detector.detect(image)
 
+        # 将检测结果坐标从 640x640 映射回原始图片尺寸
+        target_size = DetectionService.INPUT_SIZE
+        scale = min(target_size / orig_w, target_size / orig_h)
+        paste_x = (target_size - int(orig_w * scale)) // 2
+        paste_y = (target_size - int(orig_h * scale)) // 2
+
+        mapped_detections = []
+        for det in detections:
+            x, y, w, h = det['box']
+            # 减去偏移，除以缩放比例
+            orig_x = int((x - paste_x) / scale)
+            orig_y = int((y - paste_y) / scale)
+            orig_w_box = int(w / scale)
+            orig_h_box = int(h / scale)
+
+            # 确保坐标不越界
+            orig_x = max(0, orig_x)
+            orig_y = max(0, orig_y)
+
+            mapped_detections.append({
+                'box': [orig_x, orig_y, orig_w_box, orig_h_box],
+                'class': det['class'],
+                'confidence': det['confidence']
+            })
+
         process_time = time.time() - start_time
 
         return {
-            'detections': detections,
+            'detections': mapped_detections,
             'process_time': round(process_time, 4),
             'image_hash': DetectionService.calculate_image_hash(base64_image)
         }
@@ -95,7 +122,7 @@ class DetectionService:
 
         Args:
             base64_image: Base64 编码的原图
-            detections: 检测结果列表
+            detections: 检测结果列表（已映射到原始坐标）
 
         Returns:
             str: Base64 编码的标注后图片
@@ -105,41 +132,27 @@ class DetectionService:
         img_array = np.array(image)
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        # 绘制检测框
+        img_h, img_w = img_bgr.shape[:2]
+
+        # 根据图片大小调整线宽
+        thickness = max(2, int(min(img_w, img_h) / 200))
+
+        # 绘制检测框（只绘制框，不绘制文字）
         for det in detections:
             x, y, w, h = det['box']
             cls_name = det['class']
-            conf = det['confidence']
+
+            # 确保坐标在图片范围内
+            x = max(0, min(x, img_w - 1))
+            y = max(0, min(y, img_h - 1))
+            w = min(w, img_w - x)
+            h = min(h, img_h - y)
 
             # 获取颜色
             color = DetectionService.COLORS.get(cls_name, DetectionService.DEFAULT_COLOR)
 
             # 绘制矩形框
-            cv2.rectangle(img_bgr, (x, y), (x + w, y + h), color, 2)
-
-            # 绘制标签背景
-            label = f"{cls_name}: {conf:.2f}"
-            (label_w, label_h), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-            )
-            cv2.rectangle(
-                img_bgr,
-                (x, y - label_h - baseline - 5),
-                (x + label_w, y),
-                color,
-                -1
-            )
-
-            # 绘制标签文字
-            cv2.putText(
-                img_bgr,
-                label,
-                (x, y - baseline - 2),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 255),
-                1
-            )
+            cv2.rectangle(img_bgr, (x, y), (x + w, y + h), color, thickness)
 
         # 转换回 RGB 并编码为 Base64
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)

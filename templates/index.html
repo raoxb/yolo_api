@@ -3,11 +3,11 @@
 {% block title %}Upload Detection - YOLOv5{% endblock %}
 
 {% block content %}
-<div class="detection-container">
+<div class="detection-page">
     <div class="upload-section">
-        <h2>Upload Image</h2>
+        <h2>Upload Images</h2>
         <div class="upload-area" id="uploadArea">
-            <input type="file" id="fileInput" accept="image/*" hidden>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
             <div class="upload-placeholder">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -15,54 +15,284 @@
                     <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
                 <p>Drag and drop or click to upload</p>
+                <p class="upload-hint">Support multiple images</p>
             </div>
-            <img id="previewImage" class="preview-image" hidden>
         </div>
-        <button id="detectBtn" class="btn btn-primary" disabled>Detect</button>
+
+        <div class="preview-grid" id="previewGrid"></div>
+
+        <div class="upload-actions">
+            <button id="detectBtn" class="btn btn-primary" disabled>Detect All</button>
+            <button id="clearBtn" class="btn btn-secondary" disabled>Clear All</button>
+            <span class="image-count" id="imageCount"></span>
+        </div>
     </div>
 
-    <div class="result-section">
-        <h2>Detection Result</h2>
-        <div class="result-image-container">
-            <img id="resultImage" class="result-image" hidden>
-            <div id="resultPlaceholder" class="result-placeholder">
-                <p>Upload and detect to see result</p>
+    <div class="results-section">
+        <h2>Detection Results</h2>
+        <div class="results-summary" id="resultsSummary" hidden>
+            <span class="summary-item">Total: <strong id="totalCount">0</strong></span>
+            <span class="summary-item">Success: <strong id="successCount">0</strong></span>
+            <span class="summary-item">Total Time: <strong id="totalTime">0</strong>s</span>
+        </div>
+        <div class="results-grid" id="resultsGrid">
+            <div class="results-placeholder">
+                <p>Upload images and click "Detect All" to see results</p>
             </div>
         </div>
+    </div>
 
-        <div class="result-info" id="resultInfo" hidden>
-            <div class="process-time">
-                Process Time: <span id="processTime">-</span>s
-            </div>
-            <table class="detection-table">
-                <thead>
-                    <tr>
-                        <th>Class</th>
-                        <th>Confidence</th>
-                        <th>Position (x, y, w, h)</th>
-                    </tr>
-                </thead>
-                <tbody id="detectionTableBody">
-                </tbody>
-            </table>
-        </div>
+    <!-- 图片查看弹窗 -->
+    <div class="image-modal" id="imageModal">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <img id="modalImage" src="" alt="Full size image">
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+.detection-page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.upload-section, .results-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.upload-hint {
+    font-size: 0.85rem;
+    color: #95a5a6;
+    margin-top: 0.5rem;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.preview-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #ecf0f1;
+}
+
+.preview-item img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+}
+
+.preview-item .remove-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(231, 76, 60, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.preview-item .filename {
+    font-size: 0.75rem;
+    padding: 4px;
+    background: #f8f9fa;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.upload-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.image-count {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+.btn-secondary {
+    background: #95a5a6;
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #7f8c8d;
+}
+
+.results-summary {
+    display: flex;
+    gap: 2rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.summary-item {
+    color: #7f8c8d;
+}
+
+.summary-item strong {
+    color: #2c3e50;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.results-placeholder {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: #7f8c8d;
+}
+
+.result-card {
+    border: 1px solid #ecf0f1;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.result-card.error {
+    border-color: #e74c3c;
+}
+
+.result-card .result-image {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.result-card .result-image:hover {
+    opacity: 0.9;
+}
+
+/* 图片查看弹窗 */
+.image-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.image-modal.show {
+    display: flex;
+}
+
+.image-modal img {
+    max-width: 95%;
+    max-height: 95%;
+    object-fit: contain;
+}
+
+.image-modal .close-btn {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: white;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.image-modal .close-btn:hover {
+    color: #ccc;
+}
+
+.result-card .result-body {
+    padding: 1rem;
+}
+
+.result-card .result-filename {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.result-card .result-meta {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    margin-bottom: 0.5rem;
+}
+
+.result-card .result-detections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.result-card .error-message {
+    color: #e74c3c;
+    font-size: 0.85rem;
+}
+
+.result-card .detecting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    background: #f8f9fa;
+    color: #7f8c8d;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #ecf0f1;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 0.5rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
+
 <script>
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
-const previewImage = document.getElementById('previewImage');
+const previewGrid = document.getElementById('previewGrid');
 const detectBtn = document.getElementById('detectBtn');
-const resultImage = document.getElementById('resultImage');
-const resultPlaceholder = document.getElementById('resultPlaceholder');
-const resultInfo = document.getElementById('resultInfo');
-const processTime = document.getElementById('processTime');
-const detectionTableBody = document.getElementById('detectionTableBody');
+const clearBtn = document.getElementById('clearBtn');
+const imageCount = document.getElementById('imageCount');
+const resultsGrid = document.getElementById('resultsGrid');
+const resultsSummary = document.getElementById('resultsSummary');
 
-let currentBase64 = null;
+let imageFiles = []; // {file, base64, filename}
 
 // Upload area click
 uploadArea.addEventListener('click', () => fileInput.click());
@@ -80,83 +310,181 @@ uploadArea.addEventListener('dragleave', () => {
 uploadArea.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-        handleFile(file);
-    }
+    handleFiles(e.dataTransfer.files);
 });
 
 // File input change
 fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        handleFile(file);
+    handleFiles(e.target.files);
+});
+
+function handleFiles(files) {
+    const imageFilesArray = Array.from(files).filter(f => f.type.startsWith('image/'));
+
+    imageFilesArray.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imageFiles.push({
+                file: file,
+                base64: e.target.result,
+                filename: file.name
+            });
+            updatePreview();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function updatePreview() {
+    previewGrid.innerHTML = '';
+
+    imageFiles.forEach((img, index) => {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        item.innerHTML = `
+            <img src="${img.base64}" alt="${img.filename}">
+            <button class="remove-btn" onclick="removeImage(${index})">×</button>
+            <div class="filename">${img.filename}</div>
+        `;
+        previewGrid.appendChild(item);
+    });
+
+    const count = imageFiles.length;
+    imageCount.textContent = count > 0 ? `${count} image(s) selected` : '';
+    detectBtn.disabled = count === 0;
+    clearBtn.disabled = count === 0;
+}
+
+function removeImage(index) {
+    imageFiles.splice(index, 1);
+    updatePreview();
+}
+
+// Clear all
+clearBtn.addEventListener('click', () => {
+    imageFiles = [];
+    updatePreview();
+    resultsGrid.innerHTML = '<div class="results-placeholder"><p>Upload images and click "Detect All" to see results</p></div>';
+    resultsSummary.hidden = true;
+});
+
+// Detect all
+detectBtn.addEventListener('click', async () => {
+    if (imageFiles.length === 0) return;
+
+    detectBtn.disabled = true;
+    clearBtn.disabled = true;
+    detectBtn.textContent = 'Detecting...';
+
+    // 清空结果区域，显示加载状态
+    resultsGrid.innerHTML = '';
+    resultsSummary.hidden = false;
+
+    const startTime = performance.now();
+    let successCount = 0;
+    let totalDetections = 0;
+
+    // 并发检测所有图片
+    const promises = imageFiles.map(async (img, index) => {
+        // 创建结果卡片（加载状态）
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.id = `result-${index}`;
+        card.innerHTML = `
+            <div class="detecting">
+                <div class="spinner"></div>
+                Detecting...
+            </div>
+            <div class="result-body">
+                <div class="result-filename">${img.filename}</div>
+            </div>
+        `;
+        resultsGrid.appendChild(card);
+
+        try {
+            const response = await fetch('/detect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: img.base64 })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                successCount++;
+                totalDetections += data.detections.length;
+
+                card.innerHTML = `
+                    <img class="result-image" src="${data.annotated_image}" alt="${img.filename}" onclick="openModal('${data.annotated_image}')">
+                    <div class="result-body">
+                        <div class="result-filename">${img.filename}</div>
+                        <div class="result-meta">
+                            Time: ${data.process_time.toFixed(3)}s |
+                            Detections: ${data.detections.length}
+                        </div>
+                        <div class="result-detections">
+                            ${data.detections.map(det =>
+                                `<span class="class-badge class-${det.class}">${det.class} ${(det.confidence * 100).toFixed(0)}%</span>`
+                            ).join('')}
+                            ${data.detections.length === 0 ? '<span style="color:#95a5a6">No objects detected</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                card.className = 'result-card error';
+                card.innerHTML = `
+                    <div class="result-body">
+                        <div class="result-filename">${img.filename}</div>
+                        <div class="error-message">Error: ${data.error}</div>
+                    </div>
+                `;
+            }
+        } catch (err) {
+            card.className = 'result-card error';
+            card.innerHTML = `
+                <div class="result-body">
+                    <div class="result-filename">${img.filename}</div>
+                    <div class="error-message">Request failed: ${err.message}</div>
+                </div>
+            `;
+        }
+
+        // 更新统计
+        document.getElementById('totalCount').textContent = imageFiles.length;
+        document.getElementById('successCount').textContent = successCount;
+        document.getElementById('totalTime').textContent = ((performance.now() - startTime) / 1000).toFixed(2);
+    });
+
+    await Promise.all(promises);
+
+    detectBtn.disabled = false;
+    clearBtn.disabled = false;
+    detectBtn.textContent = 'Detect All';
+});
+
+// 图片查看弹窗
+function openModal(imageSrc) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    modalImg.src = imageSrc;
+    modal.classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('imageModal').classList.remove('show');
+}
+
+// 点击弹窗背景关闭
+document.getElementById('imageModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        closeModal();
     }
 });
 
-function handleFile(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        currentBase64 = e.target.result;
-        previewImage.src = currentBase64;
-        previewImage.hidden = false;
-        uploadArea.querySelector('.upload-placeholder').style.display = 'none';
-        detectBtn.disabled = false;
-    };
-    reader.readAsDataURL(file);
-}
-
-// Detect button
-detectBtn.addEventListener('click', async () => {
-    if (!currentBase64) return;
-
-    detectBtn.disabled = true;
-    detectBtn.textContent = 'Detecting...';
-
-    try {
-        const response = await fetch('/detect', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ image: currentBase64 })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            // Show result image
-            resultImage.src = data.annotated_image;
-            resultImage.hidden = false;
-            resultPlaceholder.hidden = true;
-
-            // Show result info
-            resultInfo.hidden = false;
-            processTime.textContent = data.process_time.toFixed(4);
-
-            // Update table
-            detectionTableBody.innerHTML = '';
-            if (data.detections.length === 0) {
-                detectionTableBody.innerHTML = '<tr><td colspan="3">No objects detected</td></tr>';
-            } else {
-                data.detections.forEach(det => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><span class="class-badge class-${det.class}">${det.class}</span></td>
-                        <td>${(det.confidence * 100).toFixed(1)}%</td>
-                        <td>${det.box.join(', ')}</td>
-                    `;
-                    detectionTableBody.appendChild(row);
-                });
-            }
-        } else {
-            alert('Error: ' + data.error);
-        }
-    } catch (err) {
-        alert('Request failed: ' + err.message);
-    } finally {
-        detectBtn.disabled = false;
-        detectBtn.textContent = 'Detect';
+// ESC 键关闭弹窗
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeModal();
     }
 });
 </script>

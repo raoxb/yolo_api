@@ -16,8 +16,11 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # 模型
+    # 模型配置
+    # 优先使用 ONNX 模型（更快），如果不存在则使用 PyTorch 模型
+    ONNX_MODEL_PATH = os.environ.get('ONNX_MODEL_PATH', str(BASE_DIR / 'best.onnx'))
     MODEL_PATH = os.environ.get('MODEL_PATH', str(BASE_DIR / 'best.pt'))
+    USE_ONNX = os.environ.get('USE_ONNX', 'auto')  # auto / true / false
 
     # API Keys (生产环境建议从环境变量或数据库读取)
     API_KEYS = os.environ.get('API_KEYS', 'test-api-key-123,another-key-456').split(',')
