@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Detection - YOLOv5{% endblock %}
+
+{% block content %}
+<div class="detection-container">
+    <div class="upload-section">
+        <h2>Upload Image</h2>
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*" hidden>
+            <div class="upload-placeholder">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>Drag and drop or click to upload</p>
+            </div>
+            <img id="previewImage" class="preview-image" hidden>
+        </div>
+        <button id="detectBtn" class="btn btn-primary" disabled>Detect</button>
+    </div>
+
+    <div class="result-section">
+        <h2>Detection Result</h2>
+        <div class="result-image-container">
+            <img id="resultImage" class="result-image" hidden>
+            <div id="resultPlaceholder" class="result-placeholder">
+                <p>Upload and detect to see result</p>
+            </div>
+        </div>
+
+        <div class="result-info" id="resultInfo" hidden>
+            <div class="process-time">
+                Process Time: <span id="processTime">-</span>s
+            </div>
+            <table class="detection-table">
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Confidence</th>
+                        <th>Position (x, y, w, h)</th>
+                    </tr>
+                </thead>
+                <tbody id="detectionTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const previewImage = document.getElementById('previewImage');
+const detectBtn = document.getElementById('detectBtn');
+const resultImage = document.getElementById('resultImage');
+const resultPlaceholder = document.getElementById('resultPlaceholder');
+const resultInfo = document.getElementById('resultInfo');
+const processTime = document.getElementById('processTime');
+const detectionTableBody = document.getElementById('detectionTableBody');
+
+let currentBase64 = null;
+
+// Upload area click
+uploadArea.addEventListener('click', () => fileInput.click());
+
+// Drag and drop
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('dragover');
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+        handleFile(file);
+    }
+});
+
+// File input change
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        handleFile(file);
+    }
+});
+
+function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        currentBase64 = e.target.result;
+        previewImage.src = currentBase64;
+        previewImage.hidden = false;
+        uploadArea.querySelector('.upload-placeholder').style.display = 'none';
+        detectBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Detect button
+detectBtn.addEventListener('click', async () => {
+    if (!currentBase64) return;
+
+    detectBtn.disabled = true;
+    detectBtn.textContent = 'Detecting...';
+
+    try {
+        const response = await fetch('/detect', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ image: currentBase64 })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Show result image
+            resultImage.src = data.annotated_image;
+            resultImage.hidden = false;
+            resultPlaceholder.hidden = true;
+
+            // Show result info
+            resultInfo.hidden = false;
+            processTime.textContent = data.process_time.toFixed(4);
+
+            // Update table
+            detectionTableBody.innerHTML = '';
+            if (data.detections.length === 0) {
+                detectionTableBody.innerHTML = '<tr><td colspan="3">No objects detected</td></tr>';
+            } else {
+                data.detections.forEach(det => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><span class="class-badge class-${det.class}">${det.class}</span></td>
+                        <td>${(det.confidence * 100).toFixed(1)}%</td>
+                        <td>${det.box.join(', ')}</td>
+                    `;
+                    detectionTableBody.appendChild(row);
+                });
+            }
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (err) {
+        alert('Request failed: ' + err.message);
+    } finally {
+        detectBtn.disabled = false;
+        detectBtn.textContent = 'Detect';
+    }
+});
+</script>
+{% endblock %}

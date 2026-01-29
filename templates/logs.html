@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Detection Logs - YOLOv5{% endblock %}
+
+{% block content %}
+<div class="logs-container">
+    <div class="logs-header">
+        <h2>Detection Logs</h2>
+        <div class="filter-section">
+            <label>Status:</label>
+            <select id="statusFilter" onchange="filterByStatus(this.value)">
+                <option value="" {% if not current_status %}selected{% endif %}>All</option>
+                <option value="success" {% if current_status == 'success' %}selected{% endif %}>Success</option>
+                <option value="error" {% if current_status == 'error' %}selected{% endif %}>Error</option>
+            </select>
+        </div>
+    </div>
+
+    <table class="logs-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Process Time</th>
+                <th>Detections</th>
+                <th>Client IP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in pagination.items %}
+            <tr class="status-{{ log.status }}">
+                <td>{{ log.id }}</td>
+                <td>{{ log.request_time.strftime('%Y-%m-%d %H:%M:%S') if log.request_time else '-' }}</td>
+                <td>
+                    <span class="status-badge {{ log.status }}">{{ log.status }}</span>
+                </td>
+                <td>{{ "%.3f"|format(log.process_time) if log.process_time else '-' }}s</td>
+                <td>
+                    {% if log.detections %}
+                        {% for det in log.detections %}
+                        <span class="class-badge class-{{ det.class }}">{{ det.class }}</span>
+                        {% endfor %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ log.client_ip or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="empty-row">No logs found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('web.logs', page=pagination.prev_num, status=current_status) }}" class="page-link">&laquo; Prev</a>
+        {% endif %}
+
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                <a href="{{ url_for('web.logs', page=page_num, status=current_status) }}"
+                   class="page-link {% if page_num == pagination.page %}active{% endif %}">{{ page_num }}</a>
+            {% else %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+        <a href="{{ url_for('web.logs', page=pagination.next_num, status=current_status) }}" class="page-link">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function filterByStatus(status) {
+    const url = new URL(window.location);
+    if (status) {
+        url.searchParams.set('status', status);
+    } else {
+        url.searchParams.delete('status');
+    }
+    url.searchParams.delete('page');
+    window.location = url;
+}
+</script>
+{% endblock %}

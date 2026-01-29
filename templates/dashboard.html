@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - YOLOv5{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <h2>Dashboard</h2>
+
+    <div class="stats-cards">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.today_requests }}</div>
+            <div class="stat-label">Today Requests</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_requests }}</div>
+            <div class="stat-label">Total (7 days)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.avg_process_time }}s</div>
+            <div class="stat-label">Avg Process Time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.success_rate }}%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+
+    <div class="charts-row">
+        <div class="chart-container">
+            <h3>Request Trend (7 days)</h3>
+            <canvas id="trendChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Class Distribution</h3>
+            <canvas id="classChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const stats = {{ stats | tojson }};
+
+// Request Trend Chart
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+new Chart(trendCtx, {
+    type: 'line',
+    data: {
+        labels: stats.daily_stats.map(d => d.date),
+        datasets: [{
+            label: 'Requests',
+            data: stats.daily_stats.map(d => d.count),
+            borderColor: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Class Distribution Chart
+const classCtx = document.getElementById('classChart').getContext('2d');
+new Chart(classCtx, {
+    type: 'doughnut',
+    data: {
+        labels: Object.keys(stats.class_counts),
+        datasets: [{
+            data: Object.values(stats.class_counts),
+            backgroundColor: ['#e74c3c', '#2ecc71']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

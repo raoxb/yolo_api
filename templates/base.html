@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YOLOv5 Detection{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">YOLOv5 Detection</div>
+        <div class="nav-links">
+            <a href="{{ url_for('web.index') }}" class="{% if request.endpoint == 'web.index' %}active{% endif %}">Detection</a>
+            <a href="{{ url_for('web.logs') }}" class="{% if request.endpoint == 'web.logs' %}active{% endif %}">Logs</a>
+            <a href="{{ url_for('web.dashboard') }}" class="{% if request.endpoint == 'web.dashboard' %}active{% endif %}">Dashboard</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>YOLOv5 Detection Service</p>
+    </footer>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
