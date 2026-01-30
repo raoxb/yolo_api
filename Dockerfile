@@ -14,11 +14,12 @@ COPY requirements.txt .
 
 # 安装 Python 依赖
 # 1. 安装所有依赖（ultralytics 会安装 opencv-python）
-# 2. 卸载 opencv-python
-# 3. 安装 opencv-python-headless
-# 4. 验证安装
+# 2. 强制卸载所有 opencv 版本
+# 3. 清理残留文件
+# 4. 重新安装 opencv-python-headless
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip uninstall -y opencv-python && \
+    pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python 2>/dev/null; \
+    rm -rf /usr/local/lib/python3.11/site-packages/cv2* && \
     pip install --no-cache-dir opencv-python-headless && \
     python -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
 
