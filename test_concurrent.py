@@ -113,7 +113,7 @@ class APITester:
 
     def single_request(self, image_data: dict, request_id: int) -> dict:
         """发送单个检测请求"""
-        url = f"{self.base_url}/api/detect"
+        url = f"{self.base_url}/api/aapi"
 
         # 支持传入 dict（包含 filename）或 str（纯 base64）
         if isinstance(image_data, dict):
@@ -128,7 +128,7 @@ class APITester:
             'X-API-Key': self.api_key
         }
 
-        data = json.dumps({'image': image_base64}).encode('utf-8')
+        data = json.dumps({'img': image_base64}).encode('utf-8')
 
         start_time = time.time()
         result = {

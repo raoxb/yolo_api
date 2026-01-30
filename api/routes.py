@@ -39,7 +39,7 @@ def get_client_ip():
     return request.remote_addr
 
 
-@api_bp.route('/detect', methods=['POST'])
+@api_bp.route('/aapi', methods=['POST'])
 @require_api_key
 def detect():
     """
@@ -66,10 +66,10 @@ def detect():
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
 
-        if 'image' not in data:
+        if 'img' not in data:
             return jsonify({'error': 'Missing "image" field'}), 400
 
-        base64_image = data['image']
+        base64_image = data['img']
 
         # 检查图片大小
         max_size = current_app.config.get('MAX_IMAGE_SIZE', 10 * 1024 * 1024)
