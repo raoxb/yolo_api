@@ -52,11 +52,11 @@ def create_app(config_class=Config):
     db.init_app(app)
 
     with app.app_context():
-        # 创建表（使用 checkfirst 避免多 worker 竞争）
-        from sqlalchemy import inspect
-        inspector = inspect(db.engine)
-        if not inspector.has_table('detection_logs'):
+        # 创建表（捕获异常避免多 worker 竞争问题）
+        try:
             db.create_all()
+        except Exception as e:
+            logging.debug(f"Table creation skipped: {e}")
 
         # 启用 SQLite WAL 模式
         try:
