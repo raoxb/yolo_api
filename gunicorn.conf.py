@@ -17,6 +17,10 @@ preload_app = False
 accesslog = '-'
 errorlog = '-'
 loglevel = 'info'
+# 使用 X-Forwarded-For 显示真实 IP
+access_log_format = '%({X-Forwarded-For}i)s - - [%(t)s] "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
+# 信任代理头
+forwarded_allow_ips = '*'
 
 # 进程名
 proc_name = 'yolov5-api'
