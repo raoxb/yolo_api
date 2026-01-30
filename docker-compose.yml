@@ -20,6 +20,7 @@ services:
       - USE_ONNX=true
       - CONFIDENCE_THRESHOLD=0.25
       - IOU_THRESHOLD=0.45
+      - GUNICORN_WORKERS=4
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]

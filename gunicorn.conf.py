@@ -1,8 +1,9 @@
 import multiprocessing
+import os
 
 # Worker 配置
-# CPU 密集型任务（模型推理），Worker 数量 = CPU 核心数
-workers = multiprocessing.cpu_count()
+# 优先使用环境变量，否则使用 CPU 核心数
+workers = int(os.environ.get('GUNICORN_WORKERS', multiprocessing.cpu_count()))
 worker_class = 'sync'
 timeout = 120  # 模型加载需要时间，增加超时
 
