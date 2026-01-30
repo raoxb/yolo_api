@@ -6,13 +6,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
 COPY requirements.txt .
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+# 安装 Python 依赖（确保使用 headless 版本的 opencv）
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y opencv-python opencv-contrib-python 2>/dev/null || true && \
+    pip install --no-cache-dir opencv-python-headless
 
 # 复制应用代码
 COPY . .
