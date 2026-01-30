@@ -2,12 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖（opencv-python-headless 需要的库）
+# 安装系统依赖（支持 opencv）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
-    libgl1-mesa-glx \
-    libglib2.0-dev \
+    libgl1 \
+    libxcb1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,12 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # 安装 Python 依赖
-# 使用约束文件强制使用 headless 版本
-RUN echo "opencv-python-headless" > /tmp/constraints.txt && \
-    pip install --no-cache-dir -r requirements.txt \
-    --constraint /tmp/constraints.txt \
-    --extra-index-url https://pypi.org/simple/ && \
-    pip uninstall -y opencv-python 2>/dev/null || true && \
+RUN pip install --no-cache-dir -r requirements.txt && \
     pip list | grep -i opencv
 
 # 复制应用代码
