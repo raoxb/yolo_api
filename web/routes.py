@@ -9,6 +9,15 @@ logger = logging.getLogger(__name__)
 web_bp = Blueprint('web', __name__)
 
 
+def get_client_ip():
+    """获取客户端真实 IP"""
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    if request.headers.get('X-Real-IP'):
+        return request.headers.get('X-Real-IP')
+    return request.remote_addr
+
+
 @web_bp.route('/')
 def index():
     """首页 - 上传图片检测"""
@@ -40,7 +49,7 @@ def web_detect():
             process_time=result['process_time'],
             image_hash=result['image_hash'],
             detections=result['detections'],
-            client_ip=request.remote_addr,
+            client_ip=get_client_ip(),
             api_key='web-interface',
             status='success'
         )
