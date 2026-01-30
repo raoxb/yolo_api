@@ -12,10 +12,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 复制依赖文件
 COPY requirements.txt .
 
-# 安装 Python 依赖（确保使用 headless 版本的 opencv）
+# 安装 Python 依赖
+# 1. 先安装所有依赖
+# 2. 卸载所有 opencv 版本
+# 3. 重新安装 headless 版本
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip uninstall -y opencv-python opencv-contrib-python 2>/dev/null || true && \
-    pip install --no-cache-dir opencv-python-headless
+    pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless 2>/dev/null; \
+    pip install --no-cache-dir opencv-python-headless && \
+    python -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
 
 # 复制应用代码
 COPY . .
