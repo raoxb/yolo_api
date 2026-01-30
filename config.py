@@ -9,10 +9,11 @@ class Config:
     # Flask
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
-    # 数据库
+    # 数据库（保存到 data 目录，确保持久化）
+    DATA_DIR = Path(os.environ.get('DATA_DIR', str(BASE_DIR / 'data')))
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL',
-        f'sqlite:///{BASE_DIR / "detection.db"}'
+        f'sqlite:///{DATA_DIR / "detection.db"}'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
