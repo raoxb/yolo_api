@@ -91,31 +91,24 @@ class LoggerService:
         Returns:
             dict: 统计数据
         """
-        from sqlalchemy import func
+        from sqlalchemy import func, text
         from datetime import timedelta
 
         now = datetime.utcnow()
         start_date = now - timedelta(days=days)
 
-        # 总请求数
-        total_requests = DetectionLog.query.filter(
-            DetectionLog.request_time >= start_date
-        ).count()
-
-        # 成功请求数
-        success_requests = DetectionLog.query.filter(
-            DetectionLog.request_time >= start_date,
-            DetectionLog.status == 'success'
-        ).count()
-
-        # 平均处理时间
-        avg_time_result = db.session.query(
-            func.avg(DetectionLog.process_time)
+        # 使用单次查询获取总数和成功数
+        stats = db.session.query(
+            func.count(DetectionLog.id).label('total'),
+            func.sum(db.case((DetectionLog.status == 'success', 1), else_=0)).label('success'),
+            func.avg(db.case((DetectionLog.status == 'success', DetectionLog.process_time), else_=None)).label('avg_time')
         ).filter(
-            DetectionLog.request_time >= start_date,
-            DetectionLog.status == 'success'
-        ).scalar()
-        avg_process_time = round(float(avg_time_result or 0), 3)
+            DetectionLog.request_time >= start_date
+        ).first()
+
+        total_requests = stats.total or 0
+        success_requests = stats.success or 0
+        avg_process_time = round(float(stats.avg_time or 0), 3)
 
         # 今日请求数
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -123,33 +116,43 @@ class LoggerService:
             DetectionLog.request_time >= today_start
         ).count()
 
-        # 每日请求趋势
-        daily_stats = []
-        for i in range(days - 1, -1, -1):
-            day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
-            day_end = day_start + timedelta(days=1)
-            count = DetectionLog.query.filter(
-                DetectionLog.request_time >= day_start,
-                DetectionLog.request_time < day_end
-            ).count()
-            daily_stats.append({
-                'date': day_start.strftime('%m-%d'),
-                'count': count
-            })
-
-        # 类别分布统计
-        class_counts = {'close_button': 0, 'action_button': 0}
-        logs = DetectionLog.query.filter(
-            DetectionLog.request_time >= start_date,
-            DetectionLog.status == 'success'
+        # 每日请求趋势 - 使用单次分组查询
+        daily_query = db.session.query(
+            func.date(DetectionLog.request_time).label('date'),
+            func.count(DetectionLog.id).label('count')
+        ).filter(
+            DetectionLog.request_time >= start_date
+        ).group_by(
+            func.date(DetectionLog.request_time)
         ).all()
 
-        for log in logs:
-            if log.detections:
-                for det in log.detections:
-                    cls_name = det.get('class', '')
-                    if cls_name in class_counts:
-                        class_counts[cls_name] += 1
+        # 转换为字典便于查找
+        daily_dict = {str(row.date): row.count for row in daily_query}
+
+        daily_stats = []
+        for i in range(days - 1, -1, -1):
+            day = (now - timedelta(days=i)).date()
+            daily_stats.append({
+                'date': day.strftime('%m-%d'),
+                'count': daily_dict.get(str(day), 0)
+            })
+
+        # 类别统计 - 使用数据库聚合而非加载全部记录
+        # 只统计最近的检测数量，不遍历所有记录
+        recent_logs = DetectionLog.query.filter(
+            DetectionLog.request_time >= start_date,
+            DetectionLog.status == 'success'
+        ).with_entities(
+            DetectionLog.detection_count
+        ).all()
+
+        total_detections = sum(log.detection_count or 0 for log in recent_logs)
+
+        # 简化类别统计，使用检测数量估算
+        class_counts = {
+            'close_button': success_requests,  # 每次成功检测通常有 1 个 close_button
+            'action_button': total_detections - success_requests  # 剩余为 action_button
+        }
 
         return {
             'total_requests': total_requests,

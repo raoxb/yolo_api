@@ -16,8 +16,13 @@ class DetectionLog(db.Model):
     detection_count = db.Column(db.Integer, default=0)  # 检测到的目标数量
     client_ip = db.Column(db.String(45))  # 支持 IPv6
     api_key = db.Column(db.String(100))  # 使用的 API Key (脱敏存储)
-    status = db.Column(db.String(20), default='success')  # success / error
+    status = db.Column(db.String(20), default='success', index=True)  # success / error
     error_message = db.Column(db.Text, nullable=True)
+
+    # 复合索引优化 Dashboard 查询
+    __table_args__ = (
+        db.Index('idx_request_time_status', 'request_time', 'status'),
+    )
 
     def to_dict(self):
         return {
